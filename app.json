@@ -1,0 +1,16 @@
+{
+  "name": "JiraBot",
+  "description": "A Slack bot to interact with JIRA",
+  "repository": "https://github.com/elliottcarlson/jirabot",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["node", "slack", "bot", "jira"],
+  "env": {
+    "SLACK_API_TOKEN": "Enter your Slack API Token for your new bot here.",
+    "JIRA_HOST": "Host name for your JIRA instance.",
+    "JIRA_USER": "Username to access JIRA with.",
+    "JIRA_PASS": "Password to access JIRA with."
+  },
+  "formation": [
+    { "process": "worker", "quantity": 1 }
+  ]
+}
