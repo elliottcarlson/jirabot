@@ -11,7 +11,7 @@
     "JIRA_PASS": "Password to access JIRA with."
   },
   "formation": [
-    { "process": "wab", "quantity": 0 },
+    { "process": "web", "quantity": 0 },
     { "process": "worker", "quantity": 1 }
   ]
 }
