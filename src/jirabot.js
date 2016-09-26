@@ -1,16 +1,14 @@
 import dotenv from 'dotenv';
 import JiraApi from 'jira';
-//import { Ghee, ghee } from 'ghee';
-//import Attachment from 'ghee/lib/attachment';
-import { Ghee, ghee } from './ghee.js';
-import Attachments from './attachment.js';
+import { Ghee, ghee } from 'ghee';
+import Attachments from 'ghee/lib/attachment';
 import cache from 'memory-cache';
 
 dotenv.config({ silent: true });
 
 const slack_token = process.env.SLACK_API_TOKEN || '';
 const jira_host = process.env.JIRA_HOST || '';
-const jira_port = process.env.JIRA_PORT || '';
+const jira_port = process.env.JIRA_PORT || '443';
 const jira_user = process.env.JIRA_USER || '';
 const jira_pass = process.env.JIRA_PASS || '';
 
@@ -100,6 +98,11 @@ class JiraBot extends Ghee {
         if (err) {
           reject(err);
         } else {
+          if (response.total == 0) {
+            resolve('No records found - check your JQL and try again.');
+            return;
+          }
+
           let attachments = new Attachments();
           query = encodeURIComponent(query);
           attachments.text = `I found ${response.total} issues. `;
@@ -168,7 +171,6 @@ class JiraBot extends Ghee {
 
   @ghee
   create(args, from) {
-    return 'Disabled for now.';
     return new Promise((resolve, reject) => {
       let [ key, ...params ] = args;
       let index = params.findIndex(x => x == '=&gt;');
@@ -213,7 +215,7 @@ class JiraBot extends Ghee {
 
         this.jira.addComment(issue.key, `Issue created via Slack JiraBot by ${from.profile.real_name}.`, (err, issue) => { });
 
-        resolve(`Ticket created! Visit https://${jira_host}/browse/${issue.key} to view or edit the ticket.`);
+        resolve(`Ticket created! Visit https://${jira_host}:${jira_port}/browse/${issue.key} to view or edit the ticket.`);
       });
     });
   }
