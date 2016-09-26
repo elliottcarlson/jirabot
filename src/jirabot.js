@@ -1,7 +1,9 @@
 import dotenv from 'dotenv';
 import JiraApi from 'jira';
-import { Ghee, ghee } from 'ghee';
-import Attachment from 'ghee/lib/attachment';
+//import { Ghee, ghee } from 'ghee';
+//import Attachment from 'ghee/lib/attachment';
+import { Ghee, ghee } from './ghee.js';
+import Attachments from './attachment.js';
 import cache from 'memory-cache';
 
 dotenv.config({ silent: true });
@@ -87,7 +89,86 @@ class JiraBot extends Ghee {
   }
 
   @ghee
+  query(args) {
+    let query = args.join(' ');
+
+    return new Promise((resolve, reject) => {
+      this.jira.searchJira(query, {
+        'maxResults': 5,
+        'fields': [ 'summary', 'status', 'assignee', 'reporter', 'description' ]
+      }, (err, response) => {
+        if (err) {
+          reject(err);
+        } else {
+          let attachments = new Attachments();
+          query = encodeURIComponent(query);
+          attachments.text = `I found ${response.total} issues. `;
+          if (response.total > 5) {
+            attachments.text += 'I will only display the first 5 results. ';
+          }
+          attachments.text += `Visit https://${jira_host}:${jira_port}/issues/?jql=${query} ` +
+            'to view the results of this query.';
+
+          for (let i = 0; i <= 5; i++) {
+            let issue = response.issues[i];
+            if (!issue) {
+              continue;
+            }
+
+            let attachment = attachments.add();
+            attachment.title = issue.fields.summary;
+            attachment.title_link = `https://${jira_host}:${jira_port}/browse/${issue.key}`;
+            attachment.text = issue.fields.description;
+            switch (issue.fields.status.statusCategory.name) {
+              case 'Done':
+              case 'Resolved':
+              case 'Reopened':
+                attachment.color = '#14892c';
+                break;
+              case 'To Do':
+              case 'Ready for Dev':
+              case 'To Discuss':
+              case 'Backlog':
+                attachment.color = '#4a6785';
+                break;
+              case 'In Progress':
+              case 'In Review':
+              case 'Code Review':
+              case 'Testing':
+              case 'Ready for Review':
+                attachment.color = '#ffd351';
+                break;
+              default:
+                attachment.color = '#707070';
+                break;
+            }
+
+            let reporter = attachment.add_field();
+            reporter.title = 'Reporter';
+            reporter.value = (issue.fields.reporter) ? issue.fields.reporter.displayName : '_Unknown_';
+            reporter.short = true;
+
+            let assignee = attachment.add_field();
+            assignee.title = 'Assignee';
+            assignee.value = (issue.fields.assignee) ? issue.fields.assignee.displayName : '_Unassigned_';
+            assignee.short = true;
+
+            let status = attachment.add_field();
+            status.title = 'Status';
+            status.value = issue.fields.status.name;
+            status.short = true;
+
+          }
+
+          resolve(attachments);
+        }
+      });
+    });
+  }
+
+  @ghee
   create(args, from) {
+    return 'Disabled for now.';
     return new Promise((resolve, reject) => {
       let [ key, ...params ] = args;
       let index = params.findIndex(x => x == '=&gt;');
@@ -148,16 +229,30 @@ class JiraBot extends Ghee {
       return new Promise((resolve, reject) => {
         this.jira.findIssue(ticket_id, (err, issue) => {
           if (!err) {
-            let ticket = new Attachment();
+            let attachments = new Attachments();
+
+            let ticket = attachments.add();
             ticket.fallback = `${issue.key}: "${issue.fields.summary}" (${issue.fields.status.name}).`;
             ticket.color = '#37465D';
             ticket.title = `${issue.key}: ${issue.fields.summary}`;
             ticket.title_link = `https://${jira_host}:${jira_port}/browse/${issue.key}/`;
-            ticket.addField('Status', issue.fields.status.name, true);
-            ticket.addField('Reporter', issue.fields.reporter.displayName, true);
-            ticket.addField('Assignee', (issue.fields.assignee) ? issue.fields.assignee.displayName : '_Unassigned_', true);
 
-            resolve(ticket);
+            let reporter = ticket.add_field();
+            reporter.title = 'Reporter';
+            reporter.value = issue.fields.reporter.displayName;
+            reporter.short = true;
+
+            let assignee = ticket.add_field();
+            assignee.title = 'Assignee';
+            assignee.value = (issue.fields.assignee) ? issue.fields.assignee.displayName : '_Unassigned_';
+            assignee.short = true;
+
+            let status = ticket.add_field();
+            status.title = 'Status';
+            status.value = issue.fields.status.name;
+            status.short = true;
+
+            resolve(attachments);
           } else {
             reject(err);
           }
@@ -173,6 +268,7 @@ class JiraBot extends Ghee {
     '> `.project [KEY]` - Get information about a specific project.\n' +
     '> `.create [KEY] [TITLE]` - Create a new ticket with the title in the selected project.\n' +
     '> `.create [KEY] [TITLE] => [DESCRIPTION]` - Create a new ticket with the title and description in the selected project.\n' +
+    '> `.query [JQL]` - Perform a JQL search and retrieve the first 5 results.\n' +
     'I will also listen for ticket keys in the JIRA format (KEY-ID) and look them up for you.';
   }
 }

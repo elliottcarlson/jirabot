@@ -44,6 +44,7 @@ Additionally, JiraBot also understands the following commands:
 - `.project [KEY]` - Get information about a specific project key.
 - `.create [KEY] [TITLE]` - Create a new ticket with the title in the selected project.
 - `.create [KEY] [TITLE] => [DESCRIPTION]` - Create a new ticket with the title and description in the selected project.
+- `.query [JQL]` - Perform a search using [JIRA Query Language](https://confluence.atlassian.com/jiracore/blog/2015/07/search-jira-like-a-boss-with-jql)
 
 ### Quick Deploy
 
