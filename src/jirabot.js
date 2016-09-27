@@ -3,6 +3,7 @@ import JiraApi from 'jira';
 import { Ghee, ghee } from 'ghee';
 import Attachments from 'ghee/lib/attachment';
 import cache from 'memory-cache';
+import entities from 'entities';
 
 dotenv.config({ silent: true });
 
@@ -87,84 +88,98 @@ class JiraBot extends Ghee {
   }
 
   @ghee
-  query(args) {
-    let query = args.join(' ');
-
+  query(args, from) {
     return new Promise((resolve, reject) => {
-      this.jira.searchJira(query, {
-        'maxResults': 5,
-        'fields': [ 'summary', 'status', 'assignee', 'reporter', 'description' ]
-      }, (err, response) => {
-        if (err) {
-          reject(err);
-        } else {
-          if (response.total == 0) {
-            resolve('No records found - check your JQL and try again.');
+      this.find_user(from.profile.email).then((user) => {
+        var index = args.indexOf('currentUser()');
+
+        if (index !== -1) {
+          if (!user) {
+            reject('Could not determine currentUser(). Does your Slack email match your JIRA account email?');
             return;
           }
 
-          let attachments = new Attachments();
-          query = encodeURIComponent(query);
-          attachments.text = `I found ${response.total} issues. `;
-          if (response.total > 5) {
-            attachments.text += 'I will only display the first 5 results. ';
-          }
-          attachments.text += `Visit https://${jira_host}:${jira_port}/issues/?jql=${query} ` +
-            'to view the results of this query.';
-
-          for (let i = 0; i <= 5; i++) {
-            let issue = response.issues[i];
-            if (!issue) {
-              continue;
-            }
-
-            let attachment = attachments.add();
-            attachment.title = issue.fields.summary;
-            attachment.title_link = `https://${jira_host}:${jira_port}/browse/${issue.key}`;
-            attachment.text = issue.fields.description;
-            switch (issue.fields.status.statusCategory.name) {
-              case 'Done':
-              case 'Resolved':
-              case 'Reopened':
-                attachment.color = '#14892c';
-                break;
-              case 'To Do':
-              case 'Ready for Dev':
-              case 'To Discuss':
-              case 'Backlog':
-                attachment.color = '#4a6785';
-                break;
-              case 'In Progress':
-              case 'In Review':
-              case 'Code Review':
-              case 'Testing':
-              case 'Ready for Review':
-                attachment.color = '#ffd351';
-                break;
-              default:
-                attachment.color = '#707070';
-                break;
-            }
-
-            let reporter = attachment.add_field();
-            reporter.title = 'Reporter';
-            reporter.value = (issue.fields.reporter) ? issue.fields.reporter.displayName : '_Unknown_';
-            reporter.short = true;
-
-            let assignee = attachment.add_field();
-            assignee.title = 'Assignee';
-            assignee.value = (issue.fields.assignee) ? issue.fields.assignee.displayName : '_Unassigned_';
-            assignee.short = true;
-
-            let status = attachment.add_field();
-            status.title = 'Status';
-            status.value = issue.fields.status.name;
-            status.short = true;
-
-          }
-
-          resolve(attachments);
+          args[index] = user.name;
         }
+
+        let query = entities.decodeHTML(args.join(' '));
+
+        this.jira.searchJira(query, {
+          'maxResults': 5,
+          'fields': [ 'summary', 'status', 'assignee', 'reporter', 'description' ]
+        }, (err, response) => {
+          query = encodeURIComponent(query);
+
+          if (err) {
+            reject(err + ' - Does it work on JIRA? ' +
+              `https://${jira_host}:${jira_port}/issues/?jql=${query}`);
+          } else {
+            if (response.total == 0) {
+              resolve('No records found - check your JQL and try again.');
+              return;
+            }
+
+            let attachments = new Attachments();
+            attachments.text = `I found ${response.total} issues. `;
+            if (response.total > 5) {
+              attachments.text += 'I will only display the first 5 results. ';
+            }
+            attachments.text += `Visit https://${jira_host}:${jira_port}/issues/?jql=${query} ` +
+              'to view the results of this query.';
+
+            for (let i = 0; i <= 5; i++) {
+              let issue = response.issues[i];
+              if (!issue) {
+                continue;
+              }
+
+              let attachment = attachments.add();
+              attachment.title = issue.fields.summary;
+              attachment.title_link = `https://${jira_host}:${jira_port}/browse/${issue.key}`;
+              attachment.text = issue.fields.description;
+              switch (issue.fields.status.statusCategory.name) {
+                case 'Done':
+                case 'Resolved':
+                case 'Reopened':
+                  attachment.color = '#14892c';
+                  break;
+                case 'To Do':
+                case 'Ready for Dev':
+                case 'To Discuss':
+                case 'Backlog':
+                  attachment.color = '#4a6785';
+                  break;
+                case 'In Progress':
+                case 'In Review':
+                case 'Code Review':
+                case 'Testing':
+                case 'Ready for Review':
+                  attachment.color = '#ffd351';
+                  break;
+                default:
+                  attachment.color = '#707070';
+                  break;
+              }
+
+              let reporter = attachment.add_field();
+              reporter.title = 'Reporter';
+              reporter.value = (issue.fields.reporter) ? issue.fields.reporter.displayName : '_Unknown_';
+              reporter.short = true;
+
+              let assignee = attachment.add_field();
+              assignee.title = 'Assignee';
+              assignee.value = (issue.fields.assignee) ? issue.fields.assignee.displayName : '_Unassigned_';
+              assignee.short = true;
+
+              let status = attachment.add_field();
+              status.title = 'Status';
+              status.value = issue.fields.status.name;
+              status.short = true;
+            }
+
+            resolve(attachments);
+          }
+        });
       });
     });
   }
