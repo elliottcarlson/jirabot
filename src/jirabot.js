@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import JiraApi from 'jira';
 import { Ghee, ghee } from 'ghee';
-import Attachments from 'ghee/lib/attachment';
+import { Attachments } from 'ghee/lib/attachment';
 import cache from 'memory-cache';
 import entities from 'entities';
 
